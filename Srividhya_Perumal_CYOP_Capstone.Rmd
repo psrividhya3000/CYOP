@@ -1,0 +1,127 @@
+---
+title: "Survival of Breast Cancer Surgery Patients"
+author: "Srividhya Perumal"
+date: "8/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# BINARY CLASSIFICATION OF SURVIVAL OF BREAST CANCER SURGERY PATIENTS
+## INTRODUCTION
+The [haberman’s survival dataset](https://archive.ics.uci.edu/ml/datasets/Haberman%27s+Survival) from the UCI machine learning repository was used for this project. The haberman dataset was curated and split into two datasets for training and validation purposes. Our model classifies patients as alive or dead using binary classification. We are using the gradient boosting machine (GBM) classification model. The GBM was trained using the training dataset and the accuracy was tested using the validation dataset. The GBM classification model received an accuracy value of 0.82.
+
+Download, install and load packages necessary for our model.
+
+``````{r message=FALSE}
+# Download, install and load the packages required for constructing our model
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org")
+if(!require(gbm)) install.packages("gbm", repos = "http://cran.us.r-project.org")
+
+library("caret")
+library("e1071")
+library("gbm")
+
+# set.seed() so our results are reproducible
+set.seed(1)
+```
+
+Set.seed() to 1 so that our random variables and results would be reproducible.
+
+## DATA EXPLORATION
+```{r}
+# Load and assign data that we downloaded to variable patients
+patients <- read.csv("haberman-data.txt", header = FALSE)
+# View structure of haberman dataset
+str(patients)
+```
+
+By using the structure command to view our dataset we see that there are no column headers. From the UCI machine learning repository we see information about the columns:
+
+1. Age of patient at time of operation (numerical)
+2. Patient's year of operation (year - 1900, numerical)
+3. Number of positive axillary nodes detected (numerical)
+4. Survival status (class attribute)
+
+We will add the column headers to the respective columns below.
+
+```{r}
+# Add respective headings to columns
+names(patients)<- c('Operation Age', 'Operation Year', '+ve Axillary Nodes', 'Survival')
+# Assign 0 as dead and 1 as alive
+patients$Survival <- patients$Survival - 1
+# View structure of haberman dataset
+str(patients)
+```
+The survival column indicates whether a patient survived or died. 1 indicates that the patient died.
+
+Each row in the datasets is a record of one patient. From the Survival column, we see that we can use binary classification for our prediction model.
+
+## DATA CLEANING
+```{r}
+# Check for NAs in the 4 columns
+sapply(patients, function(x) sum(is.na(x)))
+```
+
+There are no NAs and hence the data requires no further cleaning.
+
+## DATA VISUALIZATION
+  To visualize our data we will create density plots by column values.
+```{r}
+# Create density plots by attribute
+par(mfrow=c(2,3))
+for(i in c(1:4)) {
+  plot(density(patients[,i]), main=names(patients)[i])
+}
+```
+
+## MODELING
+```{r}
+# Check proportion of dead and alive patients
+# Here 1 represents a dead patient
+prop.table(table(patients$Survival))
+```
+26.5 % of patients in the dataset have died. This distinction is important because if the proportion was smaller than 15% then it would be considered as a rare event and the data would have to be modeled differently.
+
+```{r}
+# Convert values in Survival column to factors
+patients$Survival <- ifelse(patients$Survival==1,'yes','no')
+patients$Survival <- as.factor(patients$Survival)
+```
+To use the classification mode of GBM we change the class of the class column to factor.
+
+The haberman dataset is split into training and testing sets to create and evaluate our prediction system.
+
+```{r}
+# Create training and testing datasets
+test <- createDataPartition(patients$Survival, p = .3, times = 1, list = FALSE)
+train_set <- patients[-test,]
+test_set <- patients[test,]
+```
+
+We control resampling of our data to reduce the time by using the trainControl function of the caret package. This function divides our dataset into a ‘number’ of times to find the best parameters for our model.
+
+``````{r message=FALSE}
+# Control resampling of data
+control <- trainControl(method='cv', number=2, returnResamp='none', summaryFunction = twoClassSummary, classProbs = TRUE)
+# Train model
+model <- train(patients[,names(patients)[names(patients) != 'Survival']], patients[,'Survival'], method='gbm', trControl=control,  metric = "ROC", preProc = c("center", "scale"))
+summary(model)
+model
+```
+
+## PREDICTIONS AND RESULTS
+Since our model is now ready, we make predictions and evaluate them by comparing them to the true values.
+```{r}
+# Create predictions with model
+predictions <- predict(object=model, test_set[,names(patients)[names(patients) != 'Survival']], type='raw')
+# Compute accuracy
+print(postResample(pred=predictions, obs=as.factor(test_set[,'Survival'])))
+```
+The accuracy for our classification model is 0.82 > 0.7 and is accurate.
+
+## CONCLUSION
+A breast cancer surgery patient survival classification system was created to classify surival of patients. The classfication system was validated by comparing its predictions to the true values and the accuracy was determined. The accuracy value of our classfication system is 0.82.
